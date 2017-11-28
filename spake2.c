@@ -146,15 +146,11 @@ crypto_spake_client_init(crypto_spake_client_state *st,
     }
     _pop16 (&v16, public_data, &i); /* alg */
     alg = (int) v16;
-
     _pop64 (&v64, public_data, &i); /* opslimit */
     opslimit = (unsigned long long) v64;
-
     _pop64 (&v64, public_data, &i); /* memlimit */
     memlimit = (size_t) v64;
-
     _pop128(salt, public_data, &i); /* salt */
-
     if (_create_keys(&keys, salt, passwd, passwdlen, opslimit, memlimit) != 0) {
         return -1;
     }
