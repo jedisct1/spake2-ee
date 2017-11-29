@@ -1,4 +1,6 @@
 
+#include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sodium.h>
 
@@ -17,7 +19,7 @@ typedef struct spake_validators_ {
     unsigned char server_validator[32];
 } spake_validators;
 
-int
+static int
 _sc25519_is_canonical(const unsigned char *s)
 {
     /* 2^252+27742317777372353535851937790883648493 */
@@ -115,7 +117,7 @@ _shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
 }
 
 int
-crypto_spake_server_store(unsigned char stored_data[132],
+crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
                           const char * const passwd, unsigned long long passwdlen,
                           unsigned long long opslimit, size_t memlimit)
 {
@@ -143,7 +145,7 @@ crypto_spake_server_store(unsigned char stored_data[132],
 /* S -> C */
 int
 crypto_spake_step0_dummy(crypto_spake_server_state *st,
-                         unsigned char public_data[36],
+                         unsigned char public_data[crypto_spake_PUBLICDATABYTES],
                          const char *client_id, size_t client_id_len,
                          const char *server_id, size_t server_id_len,
                          unsigned long long opslimit, size_t memlimit,
@@ -181,8 +183,8 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
 
 int
 crypto_spake_step0(crypto_spake_server_state *st,
-                   unsigned char public_data[36],
-                   const unsigned char stored_data[132])
+                   unsigned char public_data[crypto_spake_PUBLICDATABYTES],
+                   const unsigned char stored_data[crypto_spake_STOREDBYTES])
 {
     unsigned char salt[crypto_pwhash_SALTBYTES];
     size_t        i, j;
@@ -212,8 +214,8 @@ crypto_spake_step0(crypto_spake_server_state *st,
 /* C -> S */
 
 int
-crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[32],
-                   const unsigned char public_data[36],
+crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[crypto_spake_RESPONSE1BYTES],
+                   const unsigned char public_data[crypto_spake_PUBLICDATABYTES],
                    const char * const passwd, unsigned long long passwdlen)
 {
     spake_keys          keys;
@@ -259,12 +261,12 @@ crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[32],
 
 int
 crypto_spake_step2(crypto_spake_server_state *st,
-                   unsigned char response2[64],
+                   unsigned char response2[crypto_spake_RESPONSE2BYTES],
                    crypto_spake_shared_keys *shared_keys,
                    const char *client_id, size_t client_id_len,
                    const char *server_id, size_t server_id_len,
-                   const unsigned char stored_data[132],
-                   const unsigned char response1[32])
+                   const unsigned char stored_data[crypto_spake_STOREDBYTES],
+                   const unsigned char response1[crypto_spake_RESPONSE1BYTES])
 {
     spake_validators     validators;
     spake_keys           keys;
@@ -319,11 +321,11 @@ crypto_spake_step2(crypto_spake_server_state *st,
 
 int
 crypto_spake_step3(crypto_spake_client_state *st,
+                   unsigned char response3[crypto_spake_RESPONSE3BYTES],
                    crypto_spake_shared_keys *shared_keys,
-                   unsigned char response3[32],
                    const char *client_id, size_t client_id_len,
                    const char *server_id, size_t server_id_len,
-                   const unsigned char response2[64])
+                   const unsigned char response2[crypto_spake_RESPONSE2BYTES])
 {
     spake_validators     validators;
     unsigned char        V[32];
@@ -356,7 +358,7 @@ crypto_spake_step3(crypto_spake_client_state *st,
 
 int
 crypto_spake_step4(crypto_spake_server_state *st,
-                   const unsigned char response3[32])
+                   const unsigned char response3[crypto_spake_RESPONSE3BYTES])
 {
     const unsigned char *server_validator = response3;
 
