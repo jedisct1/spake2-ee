@@ -53,8 +53,8 @@ main(void)
      * This first packet has to be sent to the server.
      */
 
-    crypto_spake_client_state client_st;
     unsigned char             response1[crypto_spake_RESPONSE1BYTES];
+    crypto_spake_client_state client_st;
 
     ret = crypto_spake_step1(&client_st, response1, public_data, "test", 4);
     assert(ret == 0);
