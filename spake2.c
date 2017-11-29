@@ -249,6 +249,7 @@ crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[crypto
     memlimit = (size_t) v64;
     _pop128(salt, public_data, &i); /* salt */
     if (_create_keys(&keys, salt, passwd, passwdlen, opslimit, memlimit) != 0) {
+        sodium_memzero(st, sizeof *st);
         return -1;
     }
     _random_scalar(x);
@@ -268,7 +269,6 @@ crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[crypto
 int
 crypto_spake_step2(crypto_spake_server_state *st,
                    unsigned char response2[crypto_spake_RESPONSE2BYTES],
-                   crypto_spake_shared_keys *shared_keys,
                    const char *client_id, size_t client_id_len,
                    const char *server_id, size_t server_id_len,
                    const unsigned char stored_data[crypto_spake_STOREDBYTES],
@@ -307,14 +307,12 @@ crypto_spake_step2(crypto_spake_server_state *st,
     crypto_core_ed25519_add(Y, gy, keys.N);
 
     crypto_core_ed25519_sub(gx, X, keys.M);
-    if (crypto_scalarmult_ed25519(Z, y, gx) != 0) {
-        return -1;
-    }
-    if (crypto_scalarmult_ed25519(V, y, keys.L) != 0) {
-        return -1;
-    }
-    if (_shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
-                                    server_id, server_id_len, X, Y, Z, V) != 0) {
+    if (crypto_scalarmult_ed25519(Z, y, gx) != 0 ||
+        crypto_scalarmult_ed25519(V, y, keys.L) != 0 ||
+        _shared_keys_and_validators(&st->shared_keys, &validators, client_id,
+                                    client_id_len, server_id, server_id_len,
+                                    X, Y, Z, V) != 0) {
+        sodium_memzero(st, sizeof *st);
         return -1;
     }
     memcpy(client_validator, validators.client_validator, 32);
@@ -342,34 +340,35 @@ crypto_spake_step3(crypto_spake_client_state *st,
     const unsigned char *client_validator = response2 + 32;
 
     crypto_core_ed25519_sub(gy, Y, st->N);
-    if (crypto_scalarmult_ed25519(Z, st->x, gy) != 0) {
-        return -1;
-    }
-    if (crypto_scalarmult_ed25519(V, st->h_L, gy) != 0) {
-        return -1;
-    }
-    if (_shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
-                                    server_id, server_id_len, st->X, Y, Z, V) != 0) {
-        return -1;
-    }
-    if (sodium_memcmp(client_validator, validators.client_validator, 32) != 0) {
+    if (crypto_scalarmult_ed25519(Z, st->x, gy) != 0 ||
+        crypto_scalarmult_ed25519(V, st->h_L, gy) != 0 ||
+        _shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
+                                    server_id, server_id_len, st->X, Y, Z, V) != 0 ||
+        sodium_memcmp(client_validator, validators.client_validator, 32) != 0) {
+        sodium_memzero(st, sizeof *st);
         return -1;
     }
     memcpy(server_validator, validators.server_validator, 32);
+    sodium_memzero(st, sizeof *st);
 
     return 0;
 }
 
-/* S -> C */
+/* S */
 
 int
 crypto_spake_step4(crypto_spake_server_state *st,
+                   crypto_spake_shared_keys *shared_keys,
                    const unsigned char response3[crypto_spake_RESPONSE3BYTES])
 {
     const unsigned char *server_validator = response3;
 
     if (sodium_memcmp(server_validator, st->server_validator, 32) != 0) {
+        sodium_memzero(st, sizeof *st);
         return -1;
     }
+    memcpy(shared_keys, &st->shared_keys, sizeof *shared_keys);
+    sodium_memzero(st, sizeof *st);
+
     return 0;
 }

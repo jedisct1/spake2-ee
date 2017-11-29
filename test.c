@@ -33,8 +33,8 @@ int main(void)
 
     unsigned char response2[crypto_spake_RESPONSE2BYTES];
     crypto_spake_shared_keys shared_keys_from_client;
-    ret = crypto_spake_step2(&server_st, response2, &shared_keys_from_client,
-                             "alice", 5, "bob", 3, stored_data, response1);
+    ret = crypto_spake_step2(&server_st, response2, "alice", 5, "bob", 3,
+                             stored_data, response1);
     assert(ret == 0);
 
     unsigned char response3[crypto_spake_RESPONSE3BYTES];
@@ -43,7 +43,7 @@ int main(void)
                              "alice", 5, "bob", 3, response2);
     assert(ret == 0);
 
-    ret = crypto_spake_step4(&server_st, response3);
+    ret = crypto_spake_step4(&server_st, &shared_keys_from_client, response3);
     assert(ret == 0);
 
     assert(memcmp(&shared_keys_from_client, &shared_keys_from_server,
