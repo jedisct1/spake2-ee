@@ -36,6 +36,7 @@ another round trip for mutual authentication.
      */
 
     unsigned char stored_data[crypto_spake_STOREDBYTES];
+
     ret = crypto_spake_server_store(stored_data, "test", 4,
                                     crypto_pwhash_OPSLIMIT_INTERACTIVE,
                                     crypto_pwhash_MEMLIMIT_INTERACTIVE);
@@ -47,8 +48,9 @@ another round trip for mutual authentication.
      * It only contains the parameters of the password hashing function.
      */
 
-    unsigned char public_data[crypto_spake_PUBLICDATABYTES];
+    unsigned char             public_data[crypto_spake_PUBLICDATABYTES];
     crypto_spake_server_state server_st;
+
     ret = crypto_spake_step0(&server_st, public_data, stored_data);
     assert(ret == 0);
 
@@ -60,7 +62,8 @@ another round trip for mutual authentication.
      */
 
     crypto_spake_client_state client_st;
-    unsigned char response1[crypto_spake_RESPONSE1BYTES];
+    unsigned char             response1[crypto_spake_RESPONSE1BYTES];
+
     ret = crypto_spake_step1(&client_st, response1, public_data, "test", 4);
     assert(ret == 0);
 
@@ -71,12 +74,12 @@ another round trip for mutual authentication.
      * Returns `response2` to be sent to the client.
      */
 
-    unsigned char response2[crypto_spake_RESPONSE2BYTES];
+    unsigned char            response2[crypto_spake_RESPONSE2BYTES];
     crypto_spake_shared_keys shared_keys_from_client;
-    ret = crypto_spake_step2(&server_st, response2,
-                             CLIENT_ID, sizeof CLIENT_ID - 1,
-                             SERVER_ID, sizeof SERVER_ID - 1,
-                             stored_data, response1);
+
+    ret = crypto_spake_step2(&server_st, response2, CLIENT_ID,
+                             sizeof CLIENT_ID - 1, SERVER_ID,
+                             sizeof SERVER_ID - 1, stored_data, response1);
     assert(ret == 0);
 
 
@@ -87,11 +90,12 @@ another round trip for mutual authentication.
      * as well as `response3` to be sent to the server for validation.
      */
 
-    unsigned char response3[crypto_spake_RESPONSE3BYTES];
+    unsigned char            response3[crypto_spake_RESPONSE3BYTES];
     crypto_spake_shared_keys shared_keys_from_server;
+
     ret = crypto_spake_step3(&client_st, response3, &shared_keys_from_server,
-                             CLIENT_ID, sizeof CLIENT_ID - 1,
-                             SERVER_ID, sizeof SERVER_ID - 1, response2);
+                             CLIENT_ID, sizeof CLIENT_ID - 1, SERVER_ID,
+                             sizeof SERVER_ID - 1, response2);
     assert(ret == 0);
 
 
