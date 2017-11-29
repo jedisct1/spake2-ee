@@ -21,6 +21,7 @@ main(void)
         return 1;
     }
 
+
     /*
      * Computes a blob to be stored by the server, using the default
      * libsodium password hashing function (currently Argon2id) and
@@ -31,10 +32,11 @@ main(void)
 
     unsigned char stored_data[crypto_spake_STOREDBYTES];
 
-    ret = crypto_spake_server_store(stored_data, "test", 4,
+    ret = crypto_spake_server_store(stored_data, "password", 8,
                                     crypto_pwhash_OPSLIMIT_INTERACTIVE,
                                     crypto_pwhash_MEMLIMIT_INTERACTIVE);
     assert(ret == 0);
+
 
     /*
      * `public data` is a subset of the data stored on the server.
@@ -47,6 +49,7 @@ main(void)
     ret = crypto_spake_step0(&server_st, public_data, stored_data);
     assert(ret == 0);
 
+
     /*
      * [CLIENT SIDE]
      * Computes a packet `response1` using `public_data` and the password.
@@ -56,8 +59,9 @@ main(void)
     unsigned char             response1[crypto_spake_RESPONSE1BYTES];
     crypto_spake_client_state client_st;
 
-    ret = crypto_spake_step1(&client_st, response1, public_data, "test", 4);
+    ret = crypto_spake_step1(&client_st, response1, public_data, "password", 8);
     assert(ret == 0);
+
 
     /*
      * [SERVER SIDE]
@@ -72,6 +76,7 @@ main(void)
                              sizeof CLIENT_ID - 1, SERVER_ID,
                              sizeof SERVER_ID - 1, stored_data, response1);
     assert(ret == 0);
+
 
     /*
      * [CLIENT SIDE]
@@ -88,6 +93,7 @@ main(void)
                              sizeof SERVER_ID - 1, response2);
     assert(ret == 0);
 
+
     /*
      * [SERVER SIDE]
      * Processes `response3` received from the client.
@@ -97,6 +103,7 @@ main(void)
 
     ret = crypto_spake_step4(&server_st, &shared_keys_from_client, response3);
     assert(ret == 0);
+
 
     /*
      * Both parties now share two session keys.

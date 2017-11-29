@@ -37,7 +37,7 @@ another round trip for mutual authentication.
 
     unsigned char stored_data[crypto_spake_STOREDBYTES];
 
-    ret = crypto_spake_server_store(stored_data, "test", 4,
+    ret = crypto_spake_server_store(stored_data, "password", 8,
                                     crypto_pwhash_OPSLIMIT_INTERACTIVE,
                                     crypto_pwhash_MEMLIMIT_INTERACTIVE);
     assert(ret == 0);
@@ -64,7 +64,7 @@ another round trip for mutual authentication.
     unsigned char             response1[crypto_spake_RESPONSE1BYTES];
     crypto_spake_client_state client_st;
 
-    ret = crypto_spake_step1(&client_st, response1, public_data, "test", 4);
+    ret = crypto_spake_step1(&client_st, response1, public_data, "password", 8);
     assert(ret == 0);
 
 
