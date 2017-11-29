@@ -31,6 +31,11 @@ int crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES
                               const char * const passwd, unsigned long long passwdlen,
                               unsigned long long opslimit, size_t memlimit);
 
+int crypto_spake_validate_public_data(const unsigned char public_data[crypto_spake_PUBLICDATABYTES],
+                                      const int expected_alg,
+                                      unsigned long long expected_opslimit,
+                                      unsigned long long expected_memlimit);
+
 int crypto_spake_step0_dummy(crypto_spake_server_state *st,
                              unsigned char public_data[crypto_spake_PUBLICDATABYTES],
                              const char *client_id, size_t client_id_len,

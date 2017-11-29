@@ -153,7 +153,35 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
     return 0;
 }
 
-/* S -> C */
+int
+crypto_spake_validate_public_data(const unsigned char public_data[crypto_spake_PUBLICDATABYTES],
+                                  const int expected_alg,
+                                  unsigned long long expected_opslimit,
+                                  unsigned long long expected_memlimit)
+{
+    int                 alg;
+    unsigned long long  opslimit;
+    size_t              memlimit;
+    size_t              i;
+    uint16_t            v16;
+    uint64_t            v64;
+
+    i = 0;
+    _pop16 (&v16, public_data, &i);
+    _pop16 (&v16, public_data, &i); /* alg */
+    alg = (int) v16;
+    _pop64 (&v64, public_data, &i); /* opslimit */
+    opslimit = (unsigned long long) v64;
+    _pop64 (&v64, public_data, &i); /* memlimit */
+    memlimit = (size_t) v64;
+
+    if (alg != expected_alg ||
+        opslimit != expected_opslimit || memlimit != expected_memlimit) {
+        return -1;
+    }
+    return 0;
+}
+
 int
 crypto_spake_step0_dummy(crypto_spake_server_state *st,
                          unsigned char public_data[crypto_spake_PUBLICDATABYTES],
@@ -194,8 +222,6 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
     return 0;
 }
 
-/* S -> C */
-
 int
 crypto_spake_step0(crypto_spake_server_state *st,
                    unsigned char public_data[crypto_spake_PUBLICDATABYTES],
@@ -226,8 +252,6 @@ crypto_spake_step0(crypto_spake_server_state *st,
 
     return 0;
 }
-
-/* C -> S */
 
 int
 crypto_spake_step1(crypto_spake_client_state *st,
@@ -275,8 +299,6 @@ crypto_spake_step1(crypto_spake_client_state *st,
 
     return 0;
 }
-
-/* S -> C */
 
 int
 crypto_spake_step2(crypto_spake_server_state *st,
@@ -365,8 +387,6 @@ crypto_spake_step3(crypto_spake_client_state *st,
 
     return 0;
 }
-
-/* S */
 
 int
 crypto_spake_step4(crypto_spake_server_state *st,
