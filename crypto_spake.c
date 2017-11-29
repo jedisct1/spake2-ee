@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -147,6 +148,7 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
     _push256(stored_data, &i, keys.M);
     _push256(stored_data, &i, keys.N);
     _push256(stored_data, &i, keys.L);
+    assert(i == crypto_spake_STOREDBYTES);
 
     return 0;
 }
@@ -166,6 +168,9 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
     unsigned char            len;
 
     memset(st, 0, sizeof *st);
+    if (client_id_len > 255 || server_id_len > 255) {
+        return -1;
+    }
     crypto_generichash_init(&hst, key, crypto_spake_DUMMYKEYBYTES, sizeof salt);
     len = (unsigned char) client_id_len;
     crypto_generichash_update(&hst, &len, 1);
@@ -184,6 +189,7 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
     crypto_generichash_final(&hst, salt, sizeof salt);
 
     _push128(public_data, &i, salt);                /* salt */
+    assert(i == crypto_spake_PUBLICDATABYTES);
 
     return 0;
 }
@@ -216,6 +222,7 @@ crypto_spake_step0(crypto_spake_server_state *st,
     _push64(public_data, &j, v64);
     _pop128(salt, stored_data, &i); /* salt */
     _push128(public_data, &j, salt);
+    assert(j == crypto_spake_PUBLICDATABYTES);
 
     return 0;
 }
