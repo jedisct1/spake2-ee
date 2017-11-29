@@ -114,10 +114,9 @@ _shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
     return 0;
 }
 
-static int
+int
 crypto_spake_server_store(unsigned char stored_data[132],
-                          const char * const passwd,
-                          unsigned long long passwdlen,
+                          const char * const passwd, unsigned long long passwdlen,
                           unsigned long long opslimit, size_t memlimit)
 {
     spake_keys   keys;
@@ -130,7 +129,7 @@ crypto_spake_server_store(unsigned char stored_data[132],
     }
     i = 0;
     _push16 (stored_data, &i, 0x0001);
-    _push16 (stored_data, &i, crypto_pwhash_alg_default());
+    _push16 (stored_data, &i, (uint16_t) crypto_pwhash_alg_default());
     _push64 (stored_data, &i, (uint64_t) opslimit);
     _push64 (stored_data, &i, (uint64_t) memlimit);
     _push128(stored_data, &i, salt);
@@ -141,9 +140,33 @@ crypto_spake_server_store(unsigned char stored_data[132],
     return 0;
 }
 
-static int
-crypto_spake_server_public_data(unsigned char public_data[36],
-                                const unsigned char stored_data[132])
+/* S -> C */
+int
+crypto_spake_step1_dummy(unsigned char public_data[36],
+                         const char *client_id, size_t client_id_len,
+                         unsigned long long opslimit, size_t memlimit,
+                         const unsigned char key[32])
+{
+    unsigned char salt[crypto_pwhash_SALTBYTES];
+    size_t        i;
+
+    crypto_generichash(salt, sizeof salt,
+                       (const unsigned char *) client_id, client_id_len, key, 32);
+    i = 0;
+    _push16 (public_data, &i, 0x0001);
+    _push16 (public_data, &i, (uint16_t) crypto_pwhash_alg_default()); /* alg */
+    _push64 (public_data, &i, (uint64_t) opslimit); /* opslimit */
+    _push64 (public_data, &i, (uint64_t) memlimit); /* memlimit */
+    _push128(public_data, &i, salt);                /* salt */
+
+    return 0;
+}
+
+/* S -> C */
+
+int
+crypto_spake_step1(unsigned char public_data[36],
+                   const unsigned char stored_data[132])
 {
     unsigned char salt[crypto_pwhash_SALTBYTES];
     size_t        i, j;
@@ -171,23 +194,24 @@ crypto_spake_server_public_data(unsigned char public_data[36],
 
 /* C -> S */
 
-static int
-crypto_spake_step1(crypto_spake_client_state *st,
-                   unsigned char X[32],
+int
+crypto_spake_step2(crypto_spake_client_state *st,
+                   unsigned char response1[32],
                    const unsigned char public_data[36],
                    const char * const passwd,
                    unsigned long long passwdlen)
 {
-    spake_keys        keys;
-    unsigned char      x[32];
-    unsigned char      gx[32];
-    unsigned char      salt[crypto_pwhash_SALTBYTES];
-    size_t             i;
-    int                alg;
-    unsigned long long opslimit;
-    size_t             memlimit;
-    uint16_t           v16;
-    uint64_t           v64;
+    spake_keys          keys;
+    unsigned char       gx[32];
+    unsigned char       salt[crypto_pwhash_SALTBYTES];
+    unsigned char       x[32];
+    unsigned char      *X = response1;
+    size_t              i;
+    int                 alg;
+    unsigned long long  opslimit;
+    size_t              memlimit;
+    uint16_t            v16;
+    uint64_t            v64;
 
     i = 0;
     _pop16 (&v16, public_data, &i);
@@ -219,26 +243,27 @@ crypto_spake_step1(crypto_spake_client_state *st,
 /* S -> C */
 
 int
-crypto_spake_step2(crypto_spake_server_state *st,
-                   unsigned char Y[32],
-                   unsigned char client_validator[32],
+crypto_spake_step3(crypto_spake_server_state *st,
+                   unsigned char response2[64],
                    crypto_spake_shared_keys *shared_keys,
                    const char *client_id, size_t client_id_len,
                    const char *server_id, size_t server_id_len,
                    const unsigned char stored_data[132],
                    const unsigned char X[32])
 {
-    spake_validators validators;
-    spake_keys    keys;
-    unsigned char gx[32];
-    unsigned char gy[32];
-    unsigned char V[32];
-    unsigned char Z[32];
-    unsigned char salt[crypto_pwhash_SALTBYTES];
-    unsigned char y[32];
-    size_t        i;
-    uint16_t      v16;
-    uint64_t      v64;
+    spake_validators  validators;
+    spake_keys        keys;
+    unsigned char     V[32];
+    unsigned char     Z[32];
+    unsigned char     gx[32];
+    unsigned char     gy[32];
+    unsigned char     salt[crypto_pwhash_SALTBYTES];
+    unsigned char     y[32];
+    unsigned char    *Y = response2;
+    unsigned char    *client_validator = response2 + 32;
+    size_t            i;
+    uint16_t          v16;
+    uint64_t          v64;
 
     i = 0;
     _pop16 (&v16, stored_data, &i); /* version */
@@ -277,18 +302,19 @@ crypto_spake_step2(crypto_spake_server_state *st,
 /* C -> S */
 
 int
-crypto_spake_step3(crypto_spake_client_state *st,
+crypto_spake_step4(crypto_spake_client_state *st,
                    crypto_spake_shared_keys *shared_keys,
-                   unsigned char server_validator[32],
+                   unsigned char response3[32],
                    const char *client_id, size_t client_id_len,
                    const char *server_id, size_t server_id_len,
                    const unsigned char Y[32],
                    const unsigned char client_validator[32])
 {
-    spake_validators validators;
-    unsigned char gy[32];
-    unsigned char V[32];
-    unsigned char Z[32];
+    spake_validators  validators;
+    unsigned char     V[32];
+    unsigned char     Z[32];
+    unsigned char     gy[32];
+    unsigned char    *server_validator = response3;
 
     crypto_core_ed25519_sub(gy, Y, st->N);
     if (crypto_scalarmult_ed25519(Z, st->x, gy) != 0) {
@@ -312,9 +338,11 @@ crypto_spake_step3(crypto_spake_client_state *st,
 /* S -> C */
 
 int
-crypto_spake_step4(crypto_spake_server_state *st,
-                   const unsigned char server_validator[32])
+crypto_spake_step5(crypto_spake_server_state *st,
+                   const unsigned char response4[32])
 {
+    const unsigned char *server_validator = response4;
+
     if (sodium_memcmp(server_validator, st->server_validator, 32) != 0) {
         return -1;
     }

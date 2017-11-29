@@ -14,3 +14,6 @@ typedef struct crypto_spake_shared_keys_ {
     unsigned char server_sk[32];
 } crypto_spake_shared_keys;
 
+typedef struct crypto_spake_packet_1_ {
+    unsigned char X[32];
+} crypto_spake_packet_1;
