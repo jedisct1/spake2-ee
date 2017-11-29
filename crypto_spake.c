@@ -5,7 +5,7 @@
 #include <sodium.h>
 
 #include "pushpop.h"
-#include "spake2.h"
+#include "crypto_spake.h"
 
 typedef struct spake_keys_ {
     unsigned char M[32];
@@ -80,8 +80,10 @@ _shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
                             spake_validators *validators,
                             const char *client_id, size_t client_id_len,
                             const char *server_id, size_t server_id_len,
-                            const unsigned char X[32], const unsigned char Y[32],
-                            const unsigned char Z[32], const unsigned char V[32])
+                            const unsigned char X[32],
+                            const unsigned char Y[32],
+                            const unsigned char Z[32],
+                            const unsigned char V[32])
 {
     crypto_generichash_state hst;
     unsigned char            k0[crypto_kdf_KEYBYTES];
@@ -124,7 +126,8 @@ _shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
 
 int
 crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
-                          const char * const passwd, unsigned long long passwdlen,
+                          const char * const passwd,
+                          unsigned long long passwdlen,
                           unsigned long long opslimit, size_t memlimit)
 {
     spake_keys   keys;
@@ -220,7 +223,8 @@ crypto_spake_step0(crypto_spake_server_state *st,
 /* C -> S */
 
 int
-crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[crypto_spake_RESPONSE1BYTES],
+crypto_spake_step1(crypto_spake_client_state *st,
+                   unsigned char response1[crypto_spake_RESPONSE1BYTES],
                    const unsigned char public_data[crypto_spake_PUBLICDATABYTES],
                    const char * const passwd, unsigned long long passwdlen)
 {
@@ -236,6 +240,7 @@ crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[crypto
     uint16_t            v16;
     uint64_t            v64;
 
+    memset(st, 0, sizeof *st);
     i = 0;
     _pop16 (&v16, public_data, &i);
     if (v16 != SER_VERSION) {

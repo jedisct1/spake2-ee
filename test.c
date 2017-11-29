@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sodium.h>
 
-#include "spake2.h"
+#include "crypto_spake.h"
 
 int main(void)
 {

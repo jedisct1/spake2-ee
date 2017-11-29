@@ -1,4 +1,7 @@
 
+#ifndef crypto_spake_H
+#define crypto_spake_H 1
+
 #define crypto_spake_DUMMYKEYBYTES    32
 #define crypto_spake_PUBLICDATABYTES  36
 #define crypto_spake_RESPONSE1BYTES   32
@@ -60,3 +63,5 @@ int crypto_spake_step3(crypto_spake_client_state *st,
 int crypto_spake_step4(crypto_spake_server_state *st,
                        crypto_spake_shared_keys *shared_keys,
                        const unsigned char response3[crypto_spake_RESPONSE3BYTES]);
+
+#endif
