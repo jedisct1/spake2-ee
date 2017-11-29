@@ -128,4 +128,4 @@ The API could be way better.
 
 The implementation could be faster by using private functions.
 
-But my Starbuck card balance is zero, so this is all you will get for now.
+But my Starbucks card balance is zero, so this is all you will get for now.
