@@ -119,3 +119,13 @@ another round trip for mutual authentication.
     assert(memcmp(&shared_keys_from_client, &shared_keys_from_server,
                   sizeof shared_keys_from_client) == 0);
 ```
+
+## Caveats
+
+The documentation is terrible.
+
+The API could be way better.
+
+The implementation could be faster by using private functions.
+
+But my Starbuck card balance is zero, so this is all you will get for now.
