@@ -128,4 +128,6 @@ The API could be way better.
 
 The implementation could be faster by using private functions.
 
+A version using libhydrogen would make more sense.
+
 But my Starbucks card balance is zero, so this is all you will get for now.
