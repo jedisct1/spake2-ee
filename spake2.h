@@ -1,9 +1,11 @@
 
-#define crypto_spake_STOREDBYTES 132
-#define crypto_spake_PUBLICDATABYTES 36
-#define crypto_spake_RESPONSE1BYTES 32
-#define crypto_spake_RESPONSE2BYTES 64
-#define crypto_spake_RESPONSE3BYTES 32
+#define crypto_spake_DUMMYKEYBYTES    32
+#define crypto_spake_PUBLICDATABYTES  36
+#define crypto_spake_RESPONSE1BYTES   32
+#define crypto_spake_RESPONSE2BYTES   64
+#define crypto_spake_RESPONSE3BYTES   32
+#define crypto_spake_SHAREDKEYBYTES   32
+#define crypto_spake_STOREDBYTES     132
 
 typedef struct crypto_spake_client_state_ {
     unsigned char h_L[32];
@@ -17,8 +19,8 @@ typedef struct crypto_spake_server_state_ {
 } crypto_spake_server_state;
 
 typedef struct crypto_spake_shared_keys_ {
-    unsigned char client_sk[32];
-    unsigned char server_sk[32];
+    unsigned char client_sk[crypto_spake_SHAREDKEYBYTES];
+    unsigned char server_sk[crypto_spake_SHAREDKEYBYTES];
 } crypto_spake_shared_keys;
 
 int crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
@@ -30,7 +32,7 @@ int crypto_spake_step0_dummy(crypto_spake_server_state *st,
                              const char *client_id, size_t client_id_len,
                              const char *server_id, size_t server_id_len,
                              unsigned long long opslimit, size_t memlimit,
-                             const unsigned char key[32]);
+                             const unsigned char key[crypto_spake_DUMMYKEYBYTES]);
 
 int crypto_spake_step0(crypto_spake_server_state *st,
                        unsigned char public_data[crypto_spake_PUBLICDATABYTES],

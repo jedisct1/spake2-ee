@@ -19,6 +19,8 @@ typedef struct spake_validators_ {
     unsigned char server_validator[32];
 } spake_validators;
 
+#define SER_VERSION 0x0001
+
 static int
 _sc25519_is_canonical(const unsigned char *s)
 {
@@ -106,10 +108,14 @@ _shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
     crypto_generichash_update(&hst, V, len);
     crypto_generichash_final(&hst, k0, sizeof k0);
 
-    crypto_kdf_derive_from_key(shared_keys->client_sk, 32, 0, "PAKE2+EE", k0);
-    crypto_kdf_derive_from_key(shared_keys->server_sk, 32, 1, "PAKE2+EE", k0);
-    crypto_kdf_derive_from_key(validators->client_validator, 32, 2, "PAKE2+EE", k0);
-    crypto_kdf_derive_from_key(validators->server_validator, 32, 3, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(shared_keys->client_sk,
+                               crypto_spake_SHAREDKEYBYTES, 0, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(shared_keys->server_sk,
+                               crypto_spake_SHAREDKEYBYTES, 1, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(validators->client_validator,
+                               32, 2, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(validators->server_validator,
+                               32, 3, "PAKE2+EE", k0);
 
     sodium_memzero(k0, sizeof k0);
 
@@ -130,7 +136,7 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
         return -1;
     }
     i = 0;
-    _push16 (stored_data, &i, 0x0001);
+    _push16 (stored_data, &i, SER_VERSION);
     _push16 (stored_data, &i, (uint16_t) crypto_pwhash_alg_default());
     _push64 (stored_data, &i, (uint64_t) opslimit);
     _push64 (stored_data, &i, (uint64_t) memlimit);
@@ -149,7 +155,7 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
                          const char *client_id, size_t client_id_len,
                          const char *server_id, size_t server_id_len,
                          unsigned long long opslimit, size_t memlimit,
-                         const unsigned char key[32])
+                         const unsigned char key[crypto_spake_DUMMYKEYBYTES])
 {
     crypto_generichash_state hst;
     unsigned char            salt[crypto_pwhash_SALTBYTES];
@@ -157,7 +163,7 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
     unsigned char            len;
 
     memset(st, 0, sizeof *st);
-    crypto_generichash_init(&hst, key, 32, sizeof salt);
+    crypto_generichash_init(&hst, key, crypto_spake_DUMMYKEYBYTES, sizeof salt);
     len = (unsigned char) client_id_len;
     crypto_generichash_update(&hst, &len, 1);
     crypto_generichash_update(&hst, (const unsigned char *) client_id, len);
@@ -166,7 +172,7 @@ crypto_spake_step0_dummy(crypto_spake_server_state *st,
     crypto_generichash_update(&hst, (const unsigned char *) server_id, len);
 
     i = 0;
-    _push16 (public_data, &i, 0x0001);
+    _push16 (public_data, &i, SER_VERSION);
     _push16 (public_data, &i, (uint16_t) crypto_pwhash_alg_default()); /* alg */
     _push64 (public_data, &i, (uint64_t) opslimit); /* opslimit */
     _push64 (public_data, &i, (uint64_t) memlimit); /* memlimit */
@@ -195,7 +201,7 @@ crypto_spake_step0(crypto_spake_server_state *st,
     i = 0;
     j = 0;
     _pop16 (&v16, stored_data, &i); /* version */
-    if (v16 != 0x0001) {
+    if (v16 != SER_VERSION) {
         return -1;
     }
     _push16(public_data, &j, v16);
@@ -232,7 +238,7 @@ crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[crypto
 
     i = 0;
     _pop16 (&v16, public_data, &i);
-    if (v16 != 0x0001) {
+    if (v16 != SER_VERSION) {
         return -1;
     }
     _pop16 (&v16, public_data, &i); /* alg */
@@ -285,7 +291,7 @@ crypto_spake_step2(crypto_spake_server_state *st,
 
     i = 0;
     _pop16 (&v16, stored_data, &i); /* version */
-    if (v16 != 0x0001) {
+    if (v16 != SER_VERSION) {
         return -1;
     }
     _pop16 (&v16, stored_data, &i); /* alg */
