@@ -5,12 +5,17 @@
 #include "pushpop.h"
 #include "spake2.h"
 
-typedef struct spake2_keys_ {
+typedef struct spake_keys_ {
     unsigned char M[32];
     unsigned char N[32];
     unsigned char L[32];
     unsigned char h_L[32];
-} spake2_keys;
+} spake_keys;
+
+typedef struct spake_validators_ {
+    unsigned char client_validator[32];
+    unsigned char server_validator[32];
+} spake_validators;
 
 int
 _sc25519_is_canonical(const unsigned char *s)
@@ -45,7 +50,7 @@ _random_scalar(unsigned char n[32])
 }
 
 static int
-_create_keys(spake2_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
+_create_keys(spake_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
              const char * const passwd, unsigned long long passwdlen,
              unsigned long long opslimit, size_t memlimit)
 {
@@ -67,12 +72,55 @@ _create_keys(spake2_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
 }
 
 static int
+_shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
+                            spake_validators *validators,
+                            const char *client_id, size_t client_id_len,
+                            const char *server_id, size_t server_id_len,
+                            const unsigned char X[32], const unsigned char Y[32],
+                            const unsigned char Z[32], const unsigned char V[32])
+{
+    crypto_generichash_state st;
+    unsigned char            len;
+    unsigned char            k0[crypto_kdf_KEYBYTES];
+
+    if (client_id_len > 255 || server_id_len > 255) {
+        return -1;
+    }
+    crypto_generichash_init(&st, NULL, 0, sizeof k0);
+    len = (unsigned char) client_id_len;
+    crypto_generichash_update(&st, &len, 1);
+    crypto_generichash_update(&st, (const unsigned char *) client_id, len);
+    len = (unsigned char) server_id_len;
+    crypto_generichash_update(&st, &len, 1);
+    crypto_generichash_update(&st, (const unsigned char *) server_id, len);
+    len = 32;
+    crypto_generichash_update(&st, &len, 1);
+    crypto_generichash_update(&st, X, len);
+    crypto_generichash_update(&st, &len, 1);
+    crypto_generichash_update(&st, Y, len);
+    crypto_generichash_update(&st, &len, 1);
+    crypto_generichash_update(&st, Z, len);
+    crypto_generichash_update(&st, &len, 1);
+    crypto_generichash_update(&st, V, len);
+    crypto_generichash_final(&st, k0, sizeof k0);
+
+    crypto_kdf_derive_from_key(shared_keys->client_sk, 32, 0, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(shared_keys->server_sk, 32, 1, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(validators->client_validator, 32, 2, "PAKE2+EE", k0);
+    crypto_kdf_derive_from_key(validators->server_validator, 32, 3, "PAKE2+EE", k0);
+
+    sodium_memzero(k0, sizeof k0);
+
+    return 0;
+}
+
+static int
 crypto_spake_server_store(unsigned char stored_data[132],
                           const char * const passwd,
                           unsigned long long passwdlen,
                           unsigned long long opslimit, size_t memlimit)
 {
-    spake2_keys   keys;
+    spake_keys   keys;
     unsigned char salt[crypto_pwhash_SALTBYTES];
     size_t        i;
 
@@ -121,14 +169,16 @@ crypto_spake_server_public_data(unsigned char public_data[36],
     return 0;
 }
 
+/* C -> S */
+
 static int
-crypto_spake_client_init(crypto_spake_client_state *st,
-                         unsigned char X[32],
-                         const unsigned char public_data[36],
-                         const char * const passwd,
-                         unsigned long long passwdlen)
+crypto_spake_step1(crypto_spake_client_state *st,
+                   unsigned char X[32],
+                   const unsigned char public_data[36],
+                   const char * const passwd,
+                   unsigned long long passwdlen)
 {
-    spake2_keys        keys;
+    spake_keys        keys;
     unsigned char      x[32];
     unsigned char      gx[32];
     unsigned char      salt[crypto_pwhash_SALTBYTES];
@@ -166,66 +216,29 @@ crypto_spake_client_init(crypto_spake_client_state *st,
     return 0;
 }
 
-static int
-_shared_keys(crypto_spake_client_shared_keys *shared_keys,
-             const char *client_id, size_t client_id_len,
-             const char *server_id, size_t server_id_len,
-             const unsigned char X[32], const unsigned char Y[32],
-             const unsigned char Z[32], const unsigned char V[32])
-{
-    crypto_generichash_state st;
-    unsigned char            len;
-    unsigned char            k0[crypto_kdf_KEYBYTES];
-
-    if (client_id_len > 255 || server_id_len > 255) {
-        return -1;
-    }
-    crypto_generichash_init(&st, NULL, 0, sizeof k0);
-    len = (unsigned char) client_id_len;
-    crypto_generichash_update(&st, &len, 1);
-    crypto_generichash_update(&st, (const unsigned char *) client_id, len);
-    len = (unsigned char) server_id_len;
-    crypto_generichash_update(&st, &len, 1);
-    crypto_generichash_update(&st, (const unsigned char *) server_id, len);
-    len = 32;
-    crypto_generichash_update(&st, &len, 1);
-    crypto_generichash_update(&st, X, len);
-    crypto_generichash_update(&st, &len, 1);
-    crypto_generichash_update(&st, Y, len);
-    crypto_generichash_update(&st, &len, 1);
-    crypto_generichash_update(&st, Z, len);
-    crypto_generichash_update(&st, &len, 1);
-    crypto_generichash_update(&st, V, len);
-    crypto_generichash_final(&st, k0, sizeof k0);
-
-    crypto_kdf_derive_from_key(shared_keys->client_sk, 32, 0, "PAKE2+EE", k0);
-    crypto_kdf_derive_from_key(shared_keys->server_sk, 32, 1, "PAKE2+EE", k0);
-    crypto_kdf_derive_from_key(shared_keys->client_validator, 32, 2, "PAKE2+EE", k0);
-    crypto_kdf_derive_from_key(shared_keys->server_validator, 32, 3, "PAKE2+EE", k0);
-
-    sodium_memzero(k0, sizeof k0);
-
-    return 0;
-}
+/* S -> C */
 
 int
-crypto_spake_server_init(unsigned char Y[32],
-                         crypto_spake_client_shared_keys *shared_keys,
-                         const char *client_id, size_t client_id_len,
-                         const char *server_id, size_t server_id_len,
-                         const unsigned char stored_data[132],
-                         const unsigned char X[32])
+crypto_spake_step2(crypto_spake_server_state *st,
+                   unsigned char Y[32],
+                   unsigned char client_validator[32],
+                   crypto_spake_shared_keys *shared_keys,
+                   const char *client_id, size_t client_id_len,
+                   const char *server_id, size_t server_id_len,
+                   const unsigned char stored_data[132],
+                   const unsigned char X[32])
 {
-    spake2_keys        keys;
-    unsigned char      gx[32];
-    unsigned char      gy[32];
-    unsigned char      V[32];
-    unsigned char      Z[32];
-    unsigned char      salt[crypto_pwhash_SALTBYTES];
-    unsigned char      y[32];
-    size_t             i;
-    uint16_t           v16;
-    uint64_t           v64;
+    spake_validators validators;
+    spake_keys    keys;
+    unsigned char gx[32];
+    unsigned char gy[32];
+    unsigned char V[32];
+    unsigned char Z[32];
+    unsigned char salt[crypto_pwhash_SALTBYTES];
+    unsigned char y[32];
+    size_t        i;
+    uint16_t      v16;
+    uint64_t      v64;
 
     i = 0;
     _pop16 (&v16, stored_data, &i); /* version */
@@ -251,20 +264,28 @@ crypto_spake_server_init(unsigned char Y[32],
     if (crypto_scalarmult_ed25519(V, y, keys.L) != 0) {
         return -1;
     }
-    if (_shared_keys(shared_keys, client_id, client_id_len,
-                     server_id, server_id_len, X, Y, Z, V) != 0) {
+    if (_shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
+                                    server_id, server_id_len, X, Y, Z, V) != 0) {
         return -1;
     }
+    memcpy(client_validator, validators.client_validator, 32);
+    memcpy(st->server_validator, validators.server_validator, 32);
+
     return 0;
 }
 
+/* C -> S */
+
 int
-crypto_spake_client_response(crypto_spake_client_state *st,
-                             crypto_spake_client_shared_keys *shared_keys,
-                             const char *client_id, size_t client_id_len,
-                             const char *server_id, size_t server_id_len,
-                             const unsigned char Y[32])
+crypto_spake_step3(crypto_spake_client_state *st,
+                   crypto_spake_shared_keys *shared_keys,
+                   unsigned char server_validator[32],
+                   const char *client_id, size_t client_id_len,
+                   const char *server_id, size_t server_id_len,
+                   const unsigned char Y[32],
+                   const unsigned char client_validator[32])
 {
+    spake_validators validators;
     unsigned char gy[32];
     unsigned char V[32];
     unsigned char Z[32];
@@ -276,10 +297,26 @@ crypto_spake_client_response(crypto_spake_client_state *st,
     if (crypto_scalarmult_ed25519(V, st->h_L, gy) != 0) {
         return -1;
     }
-    if (_shared_keys(shared_keys, client_id, client_id_len,
-                     server_id, server_id_len, st->X, Y, Z, V) != 0) {
+    if (_shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
+                                    server_id, server_id_len, st->X, Y, Z, V) != 0) {
+        return -1;
+    }
+    if (sodium_memcmp(client_validator, validators.client_validator, 32) != 0) {
+        return -1;
+    }
+    memcpy(server_validator, validators.server_validator, 32);
+
+    return 0;
+}
+
+/* S -> C */
+
+int
+crypto_spake_step4(crypto_spake_server_state *st,
+                   const unsigned char server_validator[32])
+{
+    if (sodium_memcmp(server_validator, st->server_validator, 32) != 0) {
         return -1;
     }
     return 0;
 }
-

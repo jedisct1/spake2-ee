@@ -5,10 +5,12 @@ typedef struct crypto_spake_client_state_ {
     unsigned char X[32];
 } crypto_spake_client_state;
 
-typedef struct crypto_spake_client_shared_keys_ {
+typedef struct crypto_spake_server_state_ {
+    unsigned char server_validator[32];
+} crypto_spake_server_state;
+
+typedef struct crypto_spake_shared_keys_ {
     unsigned char client_sk[32];
     unsigned char server_sk[32];
-    unsigned char client_validator[32];
-    unsigned char server_validator[32];
-} crypto_spake_client_shared_keys;
+} crypto_spake_shared_keys;
 
