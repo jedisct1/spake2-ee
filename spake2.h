@@ -14,6 +14,39 @@ typedef struct crypto_spake_shared_keys_ {
     unsigned char server_sk[32];
 } crypto_spake_shared_keys;
 
-typedef struct crypto_spake_packet_1_ {
-    unsigned char X[32];
-} crypto_spake_packet_1;
+int crypto_spake_server_store(unsigned char stored_data[132],
+                              const char * const passwd, unsigned long long passwdlen,
+                              unsigned long long opslimit, size_t memlimit);
+
+int crypto_spake_step0_dummy(crypto_spake_server_state *st,
+                             unsigned char public_data[36],
+                             const char *client_id, size_t client_id_len,
+                             const char *server_id, size_t server_id_len,
+                             unsigned long long opslimit, size_t memlimit,
+                             const unsigned char key[32]);
+
+int crypto_spake_step0(crypto_spake_server_state *st,
+                       unsigned char public_data[36],
+                       const unsigned char stored_data[132]);
+
+int crypto_spake_step1(crypto_spake_client_state *st, unsigned char response1[32],
+                       const unsigned char public_data[36],
+                       const char * const passwd, unsigned long long passwdlen);
+
+int crypto_spake_step2(crypto_spake_server_state *st,
+                       unsigned char response2[64],
+                       crypto_spake_shared_keys *shared_keys,
+                       const char *client_id, size_t client_id_len,
+                       const char *server_id, size_t server_id_len,
+                       const unsigned char stored_data[132],
+                       const unsigned char response1[32]);
+
+int crypto_spake_step3(crypto_spake_client_state *st,
+                       crypto_spake_shared_keys *shared_keys,
+                       unsigned char response3[32],
+                       const char *client_id, size_t client_id_len,
+                       const char *server_id, size_t server_id_len,
+                       const unsigned char response2[64]);
+
+int crypto_spake_step4(crypto_spake_server_state *st,
+                       const unsigned char response3[32]);
