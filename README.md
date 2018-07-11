@@ -6,7 +6,7 @@ A SPAKE2+EE (SPAKE2+ Elligator Edition) implementation for libsodium 1.0.16+
 
 SPAKE2 is a password-authenticated key agreement protocol, allowing two parties
 that share a password to securely authenticate each other and derive ephemeral
-session keys. It is computationally efficient, and has a strong security proof.
+session keys. It is secure and computationally efficient.
 
 This is an implementation of the
 [SPAKE2+EE](https://moderncrypto.org/mail-archive/curves/2015/000424.html)
