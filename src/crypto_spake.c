@@ -23,38 +23,6 @@ typedef struct spake_validators_ {
 #define SER_VERSION 0x0001
 
 static int
-_sc25519_is_canonical(const unsigned char *s)
-{
-    /* 2^252+27742317777372353535851937790883648493 */
-    static const unsigned char L[32] = {
-        0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7,
-        0xa2, 0xde, 0xf9, 0xde, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10
-    };
-    unsigned char c = 0;
-    unsigned char n = 1;
-    unsigned int  i = 32;
-
-    do {
-        i--;
-        c |= ((s[i] - L[i]) >> 8) & n;
-        n &= ((s[i] ^ L[i]) - 1) >> 8;
-    } while (i != 0);
-
-    return (c != 0);
-}
-
-static void
-_random_scalar(unsigned char n[32])
-{
-    do {
-        randombytes_buf(n, 32);
-        n[0] &= 248;
-        n[31] &= 31;
-    } while (_sc25519_is_canonical(n) == 0);
-}
-
-static int
 _create_keys(spake_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
              const char * const passwd, unsigned long long passwdlen,
              unsigned long long opslimit, size_t memlimit)
@@ -288,8 +256,11 @@ crypto_spake_step1(crypto_spake_client_state *st,
         sodium_memzero(st, sizeof *st);
         return -1;
     }
-    _random_scalar(x);
-    crypto_scalarmult_ed25519_base(gx, x);
+    crypto_core_ed25519_scalar_random(x);
+    sodium_add(x, x, sizeof x);
+    sodium_add(x, x, sizeof x);
+    sodium_add(x, x, sizeof x);
+    crypto_scalarmult_ed25519_base_noclamp(gx, x);
     crypto_core_ed25519_add(X, gx, keys.M);
 
     memcpy(st->h_L, keys.h_L, 32);
@@ -336,13 +307,16 @@ crypto_spake_step2(crypto_spake_server_state *st,
     _pop256(keys.N, stored_data, &i);
     _pop256(keys.L, stored_data, &i);
 
-    _random_scalar(y);
-    crypto_scalarmult_ed25519_base(gy, y);
+    crypto_core_ed25519_scalar_random(y);
+    sodium_add(y, y, sizeof y);
+    sodium_add(y, y, sizeof y);
+    sodium_add(y, y, sizeof y);
+    crypto_scalarmult_ed25519_base_noclamp(gy, y);
     crypto_core_ed25519_add(Y, gy, keys.N);
 
     crypto_core_ed25519_sub(gx, X, keys.M);
-    if (crypto_scalarmult_ed25519(Z, y, gx) != 0 ||
-        crypto_scalarmult_ed25519(V, y, keys.L) != 0 ||
+    if (crypto_scalarmult_ed25519_noclamp(Z, y, gx) != 0 ||
+        crypto_scalarmult_ed25519_noclamp(V, y, keys.L) != 0 ||
         _shared_keys_and_validators(&st->shared_keys, &validators, client_id,
                                     client_id_len, server_id, server_id_len,
                                     X, Y, Z, V) != 0) {
@@ -374,7 +348,7 @@ crypto_spake_step3(crypto_spake_client_state *st,
     const unsigned char *client_validator = response2 + 32;
 
     crypto_core_ed25519_sub(gy, Y, st->N);
-    if (crypto_scalarmult_ed25519(Z, st->x, gy) != 0 ||
+    if (crypto_scalarmult_ed25519_noclamp(Z, st->x, gy) != 0 ||
         crypto_scalarmult_ed25519(V, st->h_L, gy) != 0 ||
         _shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
                                     server_id, server_id_len, st->X, Y, Z, V) != 0 ||

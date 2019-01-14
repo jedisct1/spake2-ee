@@ -1,6 +1,6 @@
 # SPAKE2+EE
 
-A SPAKE2+EE (SPAKE2+ Elligator Edition) implementation for libsodium 1.0.16+
+A SPAKE2+EE (SPAKE2+ Elligator Edition) implementation for libsodium 1.0.17+
 
 ## Blurb
 
