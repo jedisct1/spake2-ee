@@ -12,6 +12,7 @@ typedef struct spake_keys_ {
     unsigned char M[32];
     unsigned char N[32];
     unsigned char L[32];
+    unsigned char h_K[32];
     unsigned char h_L[32];
 } spake_keys;
 
@@ -20,6 +21,7 @@ typedef struct spake_validators_ {
     unsigned char server_validator[32];
 } spake_validators;
 
+#define H_VERSION   0x01
 #define SER_VERSION 0x0001
 
 static void
@@ -41,17 +43,19 @@ _create_keys(spake_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
              const char * const passwd, unsigned long long passwdlen,
              unsigned long long opslimit, size_t memlimit)
 {
-    unsigned char  h_MNL[32 * 3];
-    unsigned char *h_M = &h_MNL[32 * 0];
-    unsigned char *h_N = &h_MNL[32 * 1];
-    unsigned char *h_L = &h_MNL[32 * 2];
+    unsigned char  h_MNKL[32 * 4];
+    unsigned char *h_M = &h_MNKL[32 * 0];
+    unsigned char *h_N = &h_MNKL[32 * 1];
+    unsigned char *h_K = &h_MNKL[32 * 2];
+    unsigned char *h_L = &h_MNKL[32 * 3];
 
-    if (crypto_pwhash(h_MNL, sizeof h_MNL, passwd, passwdlen, salt,
+    if (crypto_pwhash(h_MNKL, sizeof h_MNKL, passwd, passwdlen, salt,
                       opslimit, memlimit, crypto_pwhash_alg_default()) != 0) {
         return -1;
     }
     crypto_core_ed25519_from_uniform(keys->M, h_M);
     crypto_core_ed25519_from_uniform(keys->N, h_N);
+    memcpy(keys->h_K, h_K, 32);
     memcpy(keys->h_L, h_L, 32);
     crypto_scalarmult_ed25519_base(keys->L, keys->h_L);
 
@@ -66,31 +70,37 @@ _shared_keys_and_validators(crypto_spake_shared_keys *shared_keys,
                             const unsigned char X[32],
                             const unsigned char Y[32],
                             const unsigned char Z[32],
+                            const unsigned char h_K[32],
                             const unsigned char V[32])
 {
     crypto_generichash_state hst;
     unsigned char            k0[crypto_kdf_KEYBYTES];
     unsigned char            len;
+    unsigned char            h_version;
 
     if (client_id_len > 255 || server_id_len > 255) {
         return -1;
     }
     crypto_generichash_init(&hst, NULL, 0, sizeof k0);
+
+    h_version = H_VERSION;
+    crypto_generichash_update(&hst, &h_version, 1);
+
     len = (unsigned char) client_id_len;
     crypto_generichash_update(&hst, &len, 1);
     crypto_generichash_update(&hst, (const unsigned char *) client_id, len);
+
     len = (unsigned char) server_id_len;
     crypto_generichash_update(&hst, &len, 1);
     crypto_generichash_update(&hst, (const unsigned char *) server_id, len);
-    len = 32;
 
+    len = 32;
     crypto_generichash_update(&hst, X, len);
-    crypto_generichash_update(&hst, &len, 1);
     crypto_generichash_update(&hst, Y, len);
-    crypto_generichash_update(&hst, &len, 1);
     crypto_generichash_update(&hst, Z, len);
-    crypto_generichash_update(&hst, &len, 1);
+    crypto_generichash_update(&hst, h_K, len);
     crypto_generichash_update(&hst, V, len);
+
     crypto_generichash_final(&hst, k0, sizeof k0);
 
     crypto_kdf_derive_from_key(shared_keys->client_sk,
@@ -113,7 +123,7 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
                           unsigned long long passwdlen,
                           unsigned long long opslimit, size_t memlimit)
 {
-    spake_keys   keys;
+    spake_keys    keys;
     unsigned char salt[crypto_pwhash_SALTBYTES];
     size_t        i;
 
@@ -129,6 +139,7 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
     _push128(stored_data, &i, salt);
     _push256(stored_data, &i, keys.M);
     _push256(stored_data, &i, keys.N);
+    _push256(stored_data, &i, keys.h_K);
     _push256(stored_data, &i, keys.L);
     assert(i == crypto_spake_STOREDBYTES);
 
@@ -275,6 +286,7 @@ crypto_spake_step1(crypto_spake_client_state *st,
     crypto_scalarmult_ed25519_base_noclamp(gx, x);
     crypto_core_ed25519_add(X, gx, keys.M);
 
+    memcpy(st->h_K, keys.h_K, 32);
     memcpy(st->h_L, keys.h_L, 32);
     memcpy(st->N, keys.N, 32);
     memcpy(st->x, x, 32);
@@ -315,9 +327,10 @@ crypto_spake_step2(crypto_spake_server_state *st,
     _pop64 (&v64, stored_data, &i); /* opslimit */
     _pop64 (&v64, stored_data, &i); /* memlimit */
     _pop128(salt, stored_data, &i); /* salt */
-    _pop256(keys.M, stored_data, &i);
-    _pop256(keys.N, stored_data, &i);
-    _pop256(keys.L, stored_data, &i);
+    _pop256(keys.M,   stored_data, &i);
+    _pop256(keys.N,   stored_data, &i);
+    _pop256(keys.h_K, stored_data, &i);
+    _pop256(keys.L,   stored_data, &i);
 
     crypto_core_ed25519_scalar_random(y);
     _scalar_mul8(y);
@@ -329,7 +342,7 @@ crypto_spake_step2(crypto_spake_server_state *st,
         crypto_scalarmult_ed25519_noclamp(V, y, keys.L) != 0 ||
         _shared_keys_and_validators(&st->shared_keys, &validators, client_id,
                                     client_id_len, server_id, server_id_len,
-                                    X, Y, Z, V) != 0) {
+                                    X, Y, Z, keys.h_K, V) != 0) {
         sodium_memzero(st, sizeof *st);
         return -1;
     }
@@ -360,8 +373,9 @@ crypto_spake_step3(crypto_spake_client_state *st,
     crypto_core_ed25519_sub(gy, Y, st->N);
     if (crypto_scalarmult_ed25519_noclamp(Z, st->x, gy) != 0 ||
         crypto_scalarmult_ed25519(V, st->h_L, gy) != 0 ||
-        _shared_keys_and_validators(shared_keys, &validators, client_id, client_id_len,
-                                    server_id, server_id_len, st->X, Y, Z, V) != 0 ||
+        _shared_keys_and_validators(shared_keys, &validators, client_id,
+                                    client_id_len, server_id, server_id_len,
+                                    st->X, Y, Z, st->h_K, V) != 0 ||
         sodium_memcmp(client_validator, validators.client_validator, 32) != 0) {
         sodium_memzero(st, sizeof *st);
         return -1;

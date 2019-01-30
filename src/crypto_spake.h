@@ -8,7 +8,7 @@
 #define crypto_spake_RESPONSE2BYTES   64
 #define crypto_spake_RESPONSE3BYTES   32
 #define crypto_spake_SHAREDKEYBYTES   32
-#define crypto_spake_STOREDBYTES     132
+#define crypto_spake_STOREDBYTES     164
 
 typedef struct crypto_spake_shared_keys_ {
     unsigned char client_sk[crypto_spake_SHAREDKEYBYTES];
@@ -16,6 +16,7 @@ typedef struct crypto_spake_shared_keys_ {
 } crypto_spake_shared_keys;
 
 typedef struct crypto_spake_client_state_ {
+    unsigned char h_K[32];
     unsigned char h_L[32];
     unsigned char N[32];
     unsigned char x[32];
