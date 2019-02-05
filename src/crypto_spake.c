@@ -25,17 +25,13 @@ typedef struct spake_validators_ {
 #define SER_VERSION 0x0001
 
 static void
-_scalar_mul8(unsigned char n[32])
+_random_scalar(unsigned char n[32])
 {
-    size_t        i;
-    unsigned char t = 0U;
-    unsigned char z;
-
-    for (i = 0; i < 32; i++) {
-        z = (n[i] << 3) | t;
-        t = (n[i] >> 5);
-        n[i] = z;
-    }
+    do {
+        randombytes_buf(n, 32);
+        n[0] &= 248;
+        n[31] &= 127;
+    } while (sodium_is_zero(n, 32));
 }
 
 static int
@@ -281,8 +277,7 @@ crypto_spake_step1(crypto_spake_client_state *st,
         sodium_memzero(st, sizeof *st);
         return -1;
     }
-    crypto_core_ed25519_scalar_random(x);
-    _scalar_mul8(x);
+    _random_scalar(x);
     crypto_scalarmult_ed25519_base_noclamp(gx, x);
     crypto_core_ed25519_add(X, gx, keys.M);
 
@@ -332,8 +327,7 @@ crypto_spake_step2(crypto_spake_server_state *st,
     _pop256(keys.h_K, stored_data, &i);
     _pop256(keys.L,   stored_data, &i);
 
-    crypto_core_ed25519_scalar_random(y);
-    _scalar_mul8(y);
+    _random_scalar(y);
     crypto_scalarmult_ed25519_base_noclamp(gy, y);
     crypto_core_ed25519_add(Y, gy, keys.N);
 
