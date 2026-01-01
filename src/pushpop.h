@@ -57,7 +57,7 @@ _pop64(uint64_t *v, const unsigned char *in, size_t *i_p)
 }
 
 static inline void
-_pop128(unsigned char v[32], const unsigned char *in, size_t *i_p)
+_pop128(unsigned char v[16], const unsigned char *in, size_t *i_p)
 {
     memcpy(v, &in[*i_p], 16);
     (*i_p) += 16;

@@ -37,7 +37,7 @@ _random_scalar(unsigned char n[32])
 static int
 _create_keys(spake_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
              const char * const passwd, unsigned long long passwdlen,
-             unsigned long long opslimit, size_t memlimit)
+             unsigned long long opslimit, size_t memlimit, int alg)
 {
     unsigned char  h_MNKL[32 * 4];
     unsigned char *h_M = &h_MNKL[32 * 0];
@@ -46,7 +46,7 @@ _create_keys(spake_keys *keys, unsigned char salt[crypto_pwhash_SALTBYTES],
     unsigned char *h_L = &h_MNKL[32 * 3];
 
     if (crypto_pwhash(h_MNKL, sizeof h_MNKL, passwd, passwdlen, salt,
-                      opslimit, memlimit, crypto_pwhash_alg_default()) != 0) {
+                      opslimit, memlimit, alg) != 0) {
         return -1;
     }
     crypto_core_ed25519_from_uniform(keys->M, h_M);
@@ -124,7 +124,8 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
     size_t        i;
 
     randombytes_buf(salt, sizeof salt);
-    if (_create_keys(&keys, salt, passwd, passwdlen, opslimit, memlimit) != 0) {
+    if (_create_keys(&keys, salt, passwd, passwdlen, opslimit, memlimit,
+                     crypto_pwhash_alg_default()) != 0) {
         return -1;
     }
     i = 0;
@@ -138,6 +139,8 @@ crypto_spake_server_store(unsigned char stored_data[crypto_spake_STOREDBYTES],
     _push256(stored_data, &i, keys.h_K);
     _push256(stored_data, &i, keys.L);
     assert(i == crypto_spake_STOREDBYTES);
+
+    sodium_memzero(&keys, sizeof keys);
 
     return 0;
 }
@@ -156,7 +159,10 @@ crypto_spake_validate_public_data(const unsigned char public_data[crypto_spake_P
     uint64_t            v64;
 
     i = 0;
-    _pop16 (&v16, public_data, &i);
+    _pop16 (&v16, public_data, &i); /* version */
+    if (v16 != SER_VERSION) {
+        return -1;
+    }
     _pop16 (&v16, public_data, &i); /* alg */
     alg = (int) v16;
     _pop64 (&v64, public_data, &i); /* opslimit */
@@ -273,7 +279,7 @@ crypto_spake_step1(crypto_spake_client_state *st,
     _pop64 (&v64, public_data, &i); /* memlimit */
     memlimit = (size_t) v64;
     _pop128(salt, public_data, &i); /* salt */
-    if (_create_keys(&keys, salt, passwd, passwdlen, opslimit, memlimit) != 0) {
+    if (_create_keys(&keys, salt, passwd, passwdlen, opslimit, memlimit, alg) != 0) {
         sodium_memzero(st, sizeof *st);
         return -1;
     }
@@ -286,6 +292,10 @@ crypto_spake_step1(crypto_spake_client_state *st,
     memcpy(st->N, keys.N, 32);
     memcpy(st->x, x, 32);
     memcpy(st->X, X, 32);
+
+    sodium_memzero(&keys, sizeof keys);
+    sodium_memzero(x, sizeof x);
+    sodium_memzero(gx, sizeof gx);
 
     return 0;
 }
@@ -343,6 +353,13 @@ crypto_spake_step2(crypto_spake_server_state *st,
     memcpy(client_validator, validators.client_validator, 32);
     memcpy(st->server_validator, validators.server_validator, 32);
 
+    sodium_memzero(&validators, sizeof validators);
+    sodium_memzero(&keys, sizeof keys);
+    sodium_memzero(V, sizeof V);
+    sodium_memzero(Z, sizeof Z);
+    sodium_memzero(y, sizeof y);
+    sodium_memzero(gy, sizeof gy);
+
     return 0;
 }
 
@@ -375,6 +392,11 @@ crypto_spake_step3(crypto_spake_client_state *st,
         return -1;
     }
     memcpy(server_validator, validators.server_validator, 32);
+
+    sodium_memzero(&validators, sizeof validators);
+    sodium_memzero(V, sizeof V);
+    sodium_memzero(Z, sizeof Z);
+    sodium_memzero(gy, sizeof gy);
     sodium_memzero(st, sizeof *st);
 
     return 0;
